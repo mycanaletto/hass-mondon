@@ -1,0 +1,154 @@
+
+
+
+- alias: '100 : CONFORT Séjour Semaine'
+  description: 'Confort et Confort+ Séjour Semaine sauf jours fériés'
+  trigger:
+    - entity_id: binary_sensor.sejour_start_semaine_matin
+      platform: state
+      to: 'on'
+
+    - entity_id: binary_sensor.sejour_start_semaine_midi
+      platform: state
+      to: 'on'
+
+    - entity_id: binary_sensor.sejour_start_semaine_soir
+      platform: state
+      to: 'on'
+  # - platform: template
+  #   value_template: '{{ states.sensor.time.state == states.input_datetime.sejour_start_semaine_matin.state[0:5] }}'
+  # - platform: template
+  #   value_template: '{{ states.sensor.time.state == states.input_datetime.sejour_start_semaine_midi.state[0:5] }}'
+  # - platform: template
+  #   value_template: '{{ states.sensor.time.state == states.input_datetime.sejour_start_semaine_soir.state[0:5] }}'
+
+  # - platform: template
+  #   value_template: '{{ states('input_datetime.sejour_start_semaine_matin')[0:5] == states('sensor.time') }}'
+  # - platform: template
+  #   value_template: '{{ states.input_datetime.sejour_start_semaine_matin.state[0:5] == states.sensor.time.state }}'
+
+  condition:
+    condition: and
+    conditions:
+      - condition: state
+        entity_id: input_boolean.thermostats_on_off
+        state: 'on'
+      - condition: state
+        entity_id: input_boolean.thermostats_away
+        state: 'off'
+
+      - condition: time
+        weekday:
+          - mon
+          - tue
+          - wed
+          - thu
+          - fri
+
+      - condition: state
+        entity_id: binary_sensor.workday_sensor
+        state: 'on'
+
+  action:
+  - service: climate.set_temperature
+    entity_id: climate.thermostat_sejour
+    data_template:
+      temperature: '{% if trigger.entity_id == "binary_sensor.sejour_start_semaine_matin" and is_state("input_boolean.boost_sejour_semaine_matin", "on") %}
+                      {{ states.input_number.consigne_confort_plus.state }}
+                    {% elif trigger.entity_id == "binary_sensor.sejour_start_semaine_midi" and is_state("input_boolean.boost_sejour_semaine_midi", "on") %}
+                      {{ states.input_number.consigne_confort_plus.state }}
+                    {% elif trigger.entity_id == "binary_sensor.sejour_start_semaine_soir" and is_state("input_boolean.boost_sejour_semaine_soir", "on") %}
+                      {{ states.input_number.consigne_confort_plus.state }}
+                    {% else %}
+                      {{ states.input_number.consigne_confort.state }}
+                    {% endif %}'
+
+
+
+  - service: notify.slack_hass_canaletto
+    data_template:
+      message: >
+        {% if trigger.entity_id == "binary_sensor.sejour_start_semaine_matin" and is_state("input_boolean.boost_sejour_semaine_matin", "on") %}
+          {{ states.sensor.date_time.state}} Matin > Confort+ ({{ states.input_number.consigne_confort_plus.state }}°), Séjour : {{ states('sensor.mi_t_clock') }}°, Extérieur : {{ states('sensor.saint_andiol_temperature') }}°
+        {% elif trigger.entity_id == "binary_sensor.sejour_start_semaine_midi" and is_state("input_boolean.boost_sejour_semaine_midi", "on") %}
+          {{ states.sensor.date_time.state}} Midi > Confort+ ({{ states.input_number.consigne_confort_plus.state }}°), Séjour : {{ states('sensor.mi_t_clock') }}°, Extérieur : {{ states('sensor.saint_andiol_temperature') }}°
+        {% elif trigger.entity_id == "binary_sensor.sejour_start_semaine_soir" and is_state("input_boolean.boost_sejour_semaine_soir", "on") %}
+          {{ states.sensor.date_time.state}} Soir > Confort+ ({{ states.input_number.consigne_confort_plus.state }}°), Séjour : {{ states('sensor.mi_t_clock') }}°, Extérieur : {{ states('sensor.saint_andiol_temperature') }}°
+        {% else %}
+          {{ states.sensor.date_time.state}} > Confort ({{ states.input_number.consigne_confort.state }}°), Séjour : {{ states('sensor.mi_t_clock') }}°, Extérieur : {{ states('sensor.saint_andiol_temperature') }}°
+        {% endif %}
+
+  # - service: notify.slack_hass_canaletto
+  #   data_template:
+  #     message: >
+  #       {{ trigger.entity_id }}
+
+#      temperature: '{% if (trigger.entity_id == "binary_sensor.sejour_start_semaine_matin") and (input_boolean.boost_sejour_semaine_matin, "on") %}
+# temperature: '{% if is_state("trigger.entity_id", "binary_sensor.sejour_start_semaine_matin") and ("input_boolean.boost_sejour_semaine_matin", "on") %}
+# id: 'remote_bath_center'
+#     alias: SDB plafond on
+#     trigger:
+#     - entity_id:  sensor.sdb_remote
+#       platform: state
+#       to: toggle
+#     - entity_id: input_select.lumiere_sdb
+#       platform: state
+#     - entity_id: binary_sensor.sdb_motion
+#       platform: state
+#       from: 'off'
+#       to: 'on'
+#     condition: 
+#       - condition: or
+#         conditions:
+#         - condition: and
+#           conditions:
+#           - condition: state
+#             entity_id: light.sdb_all_lights
+#             state: 'off'
+#           - condition: template
+#             value_template: "{{ trigger.entity_id != 'input_select.lumiere_sdb' }}"
+#         - condition: and
+#           conditions:
+#           - condition: template
+#             value_template: "{{ trigger.entity_id == 'input_select.lumiere_sdb' }}"
+#           - condition: state
+#             entity_id: light.sdb_all_lights
+#             state: 'on'
+#         - condition: and
+#           conditions:
+#             - condition: template
+#               value_template: "{{ trigger.entity_id == 'binary_sensor.sdb_motion' }}"
+#             - condition: or
+#               conditions: 
+#                 - condition: state
+#                   entity_id: input_select.day_period
+#                   state: 'Matin'
+#                 - condition: state
+#                   entity_id: input_select.day_period
+#                   state: 'Jour lumineux'
+#                 - condition: state
+#                   entity_id: input_select.day_period
+#                   state: 'Jour sombre'
+#                 - condition: state
+#                   entity_id: input_select.day_period
+#                   state: 'Soir'
+#     action:
+#     - service: switch.turn_off
+#       data:
+#         entity_id: switch.circadian_lighting_circadian_salle_de_bain
+#     - data_template:
+#         entity_id: light.sdb_plafond
+#         transition: 2
+#         brightness: >
+#           {% if states('input_select.lumiere_sdb') == 'Full' or states('input_select.lumiere_sdb') == 'Plafond' %}
+#           255
+#           {% elif states('input_select.lumiere_sdb') == 'Dim1'%}
+#           128
+#           {% else %}
+#           10
+#           {% endif %}
+#       service: light.turn_on
+#     - delay: 00:00:02
+#     - service: switch.turn_on
+#       data:
+#         entity_id: switch.circadian_lighting_circadian_salle_de_bain
