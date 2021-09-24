@@ -1,0 +1,86 @@
+binary_sensor:
+  - platform: template
+    sensors:
+       andre_geo:
+         friendly_name: "Présence / Absence temporaire (André)"
+         device_class: presence
+         icon_template: >-
+           {% if is_state('binary_sensor.andre_geo','on') %} mdi:home-account
+           {% else %} mdi:home-outline
+           {% endif %}
+         value_template: >-
+           {{ is_state('input_boolean.presence_andre_geo', 'on') }}
+       clemence_geo:
+         friendly_name: "Présence / Absence temporaire (Clémence)"
+         device_class: presence
+         icon_template: >-
+           {% if is_state('binary_sensor.clemence_geo','on') %} mdi:home-account
+           {% else %} mdi:home-outline
+           {% endif %}
+         value_template: >-
+           {{ is_state('input_boolean.presence_clemence_geo', 'on') }}
+       nicolas_geo:
+         friendly_name: "Présence / Absence temporaire (Nicolas)"
+         device_class: presence
+         icon_template: >-
+           {% if is_state('binary_sensor.nicolas_geo','on') %} mdi:home-account
+           {% else %} mdi:home-outline
+           {% endif %}
+         value_template: >-
+           {{ is_state('input_boolean.presence_nicolas_geo', 'on') }}
+
+input_boolean:
+  presence_andre_geo:
+    name: Forcer la géolocalisation (André)
+    icon:  mdi:account-check
+  presence_clemence_geo:
+    name: Forcer la géolocalisation (Clémence)
+    icon:  mdi:account-check
+  presence_nicolas_geo:
+    name: Forcer la géolocalisation (Nicolas)
+    icon:  mdi:account-check
+
+
+automation:
+
+- id: 'ae015faf-344f-4c1d-bf33-77471a3f7b4c'
+  alias: GEO - André en depart
+  mode: single
+  trigger:
+  - platform: numeric_state
+    entity_id:
+      - proximity.andre
+    above: 4
+  condition:
+  - condition: and
+    conditions:
+    - condition: template
+      value_template: '{{ trigger.to_state.attributes.dir_of_travel  == "away_from" }}'
+  action:
+  - service: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.presence_andre_geo
+  - service: notify.slack_hass_mondon
+    data:
+      message: "{{ states.sensor.date_time.state}} > André s'éloigne de sa maison | Distance : {{ states.proximity.andre.state }} Km."
+
+- id: '2d4597c5-7c34-4692-9d6c-6b1b54b02a89'
+  alias: GEO - André en approche
+  mode: single
+  trigger:
+  - platform: numeric_state
+    entity_id:
+      - proximity.andre
+    below: 4
+  condition:
+  - condition: and
+    conditions:
+    - condition: template
+      value_template: '{{ trigger.to_state.attributes.dir_of_travel  == "towards" }}'
+  action:
+  - service: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.presence_andre_geo
+  - service: notify.slack_hass_mondon
+    data:
+      message: "{{ states.sensor.date_time.state}} > André s'approche de sa maison | Distance : {{ states.proximity.andre.state }} Km."

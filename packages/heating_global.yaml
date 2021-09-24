@@ -1,0 +1,222 @@
+input_boolean:
+  heating_enabled:
+    name: AC mode chauffage
+    icon: mdi:toggle-switch
+  cooling_enabled:
+    name: AC mode froid
+    icon: mdi:toggle-switch
+
+  homeoffice:
+    name: Home Office
+    icon: mdi:toggle-switch
+  to_sleep:
+    name: To Sleep
+    icon: mdi:toggle-switch
+  # to_away:
+  #   name: To Away
+  #   icon: mdi:toggle-switch
+
+  thermostats_on_off:
+    name: 'Chauffage : On / Off'
+    icon: mdi:thermostat-box
+
+  thermostats_away:
+    name: 'Chauffage : Mode Absent'
+    icon: mdi:thermostat-box
+
+  thermostats_ac_on_off:
+    name: 'Climatiseur : On / Off'
+    icon: mdi:thermostat-box
+
+  holidays_andre:
+    name: Vacances André
+    icon: mdi:airplane
+
+input_select:
+  ac_mode:
+    name: AC Mode
+    icon: mdi:thermostat-box
+    options:
+     - Inactif
+     - Chauffage 
+     - Refroidissement  
+     - Déshumidification
+     - Ventilation
+     - Automatique
+
+input_number:
+  off_temperature:
+    name: Off Température
+    min: 14
+    max: 36
+    step: 1.0
+    unit_of_measurement: °C
+    icon: 'mdi:thermometer-lines'
+  off_temperature_convecteur:
+    name: Off Température Convecteur
+    min: 6
+    max: 16
+    step: 1.0
+    unit_of_measurement: °C
+    icon: 'mdi:thermometer-lines'    
+  off_temperature_ac:
+    name: Off Température AC
+    min: 14
+    max: 30
+    step: 1.0
+    unit_of_measurement: °C
+    icon: 'mdi:thermometer-lines'  
+
+
+
+template:
+  - sensor:
+      - name: "Day Type"
+        state: >
+          {% if now().isoweekday() in (6,) and states.binary_sensor.workday_sensor.state == 'on' and states.input_boolean.holidays_andre.state == 'off' %}
+            saturday_working
+          {% elif now().isoweekday() in (1,2,3,4,5,) and states.binary_sensor.workday_sensor.state == 'on' and states.input_boolean.holidays_andre.state == 'off'%}
+            weekday_working
+          {% elif states.binary_sensor.workday_sensor.state == 'off' or states.input_boolean.holidays_andre.state == 'on'%}
+            weekend_and_holidays
+          {% else %}
+            failed
+          {% endif %}
+
+
+
+binary_sensor:
+  - platform: template
+    sensors:
+      workday_saturday_working:
+        friendly_name: "Samedi travaillé"
+        value_template: >
+          {% if now().isoweekday() in (6,) and states.binary_sensor.workday_sensor.state == 'on' and states.input_boolean.holidays_andre.state == 'off' %}
+            true
+          {%else%}
+            false
+          {% endif %}
+
+      workday_weekday_working:
+        friendly_name: "Jour de semaine travaillé"
+        value_template: >
+          {% if now().isoweekday() in (1,2,3,4,5,) and states.binary_sensor.workday_sensor.state == 'on' and states.input_boolean.holidays_andre.state == 'off'%}
+            true
+          {%else%}
+            false
+          {% endif %}
+
+      workday_weekend_holidays:
+        friendly_name: "Week-End, Vacances ou jour Férié"
+        value_template: >
+          {% if states.binary_sensor.workday_sensor.state == 'off' or states.input_boolean.holidays_andre.state == 'on'%}
+            true
+          {%else%}
+            false
+          {% endif %}
+
+input_datetime:
+  next_andre_holidays_start:
+    name: Début des vacances André
+    has_date: true
+    has_time: true
+    icon: mdi:calendar-clock
+  next_andre_holidays_stop:
+    name: Fin des vacances André
+    has_date: true
+    has_time: true
+    icon: mdi:calendar-clock
+
+
+
+automation:
+  - alias: 'Schedy : André (Début des vacances)'
+    trigger:
+    - platform: state
+      entity_id: input_boolean.holidays_andre
+      to: 'on'
+    - platform: template
+      value_template: "{{ states('sensor.date_time') == (states.input_datetime.next_andre_holidays_start.attributes.timestamp | int | timestamp_custom('%Y-%m-%d, %H:%M', True)) }}"
+    condition: []
+    action:
+    - service: input_boolean.turn_on
+      data: {}
+      target:
+        entity_id: input_boolean.holidays_andre
+    - service: notify.slack_hass_mondon
+      data:
+        message: "{{now().strftime('%d/%m/%Y, %H:%M')}} > Début des vacances d'André..."
+
+  - alias: 'Schedy : André (Fin des vacances)'
+    trigger:
+    - platform: state
+      entity_id: input_boolean.holidays_andre
+      to: 'off'
+    - platform: template
+      value_template: "{{ states('sensor.date_time') == (states.input_datetime.next_andre_holidays_stop.attributes.timestamp | int | timestamp_custom('%Y-%m-%d, %H:%M', True)) }}"
+    condition: []
+    action:
+    - service: input_boolean.turn_off
+      data: {}
+      target:
+        entity_id: input_boolean.holidays_andre
+    - service: notify.slack_hass_mondon
+      data:
+        message: "{{now().strftime('%d/%m/%Y, %H:%M')}} > Fin des vacances d'André..."
+
+
+
+  - alias: 'CLIMATE - On / Off des Thermostats'
+    description: ''
+    trigger:
+    - platform: state
+      entity_id: input_boolean.thermostats_on_off
+    action:
+    - service: climate.set_hvac_mode
+      entity_id: climate.climate_global
+      data_template:
+        hvac_mode: >
+          {% if states.input_boolean.thermostats_on_off.state == "on" %}
+            heat
+          {% else %}
+            off
+          {% endif %}
+
+  - alias: 'CLIMATE - Away / None des Thermostats'
+    description: ''
+    trigger:
+    - platform: state
+      entity_id: input_boolean.thermostats_away
+    action:
+    - service: climate.set_preset_mode
+      entity_id: climate.climate_global
+      data_template:
+        preset_mode: >
+          {% if states.input_boolean.thermostats_away.state == "on" %}
+            away
+          {% else %}
+            none
+          {% endif %}
+
+# AC
+  - alias: 'CLIMATE - AC Chaud'
+    description: ''
+    trigger:
+      platform: state
+      entity_id: input_boolean.heating_enabled
+      to: 'on'
+    action:
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.cooling_enabled
+
+  - alias: 'CLIMATE - AC Froid'
+    description: ''
+    trigger:
+      platform: state
+      entity_id: input_boolean.cooling_enabled
+      to: 'on'
+    action:
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.heating_enabled
